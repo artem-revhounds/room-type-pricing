@@ -8,69 +8,81 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+<body class="bg-gray-950 text-gray-100 min-h-screen font-sans antialiased selection:bg-emerald-500 selection:text-gray-900">
 
-    <div class="max-w-6xl mx-auto p-6">
-        <header class="border-b border-gray-800 pb-4 mb-8">
-            <h1 class="text-3xl font-bold text-emerald-400">🏨 RevOps Automated Portal</h1>
-            <p class="text-gray-400 text-sm mt-1">Upload historical reservation data to dynamically map metrics and calculate yield recommendations.</p>
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        <header class="border-b border-gray-800 pb-6 mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">🏨 RevOps Automated Portal</h1>
+                <p class="text-gray-400 text-sm mt-1">Transform historical reservation data into institutional-grade yield and pricing analytics.</p>
+            </div>
+            <div id="metaWidget" class="hidden bg-gray-900 border border-gray-800 rounded-xl px-4 py-2 text-xs text-right space-y-0.5">
+                <div>🗓️ <span class="text-gray-400">Timeframe:</span> <span id="dateRangeText" class="text-emerald-400 font-medium"></span></div>
+                <div>📊 <span class="text-gray-400">Nights Analyzed:</span> <span id="totalRowsText" class="text-emerald-400 font-medium"></span></div>
+            </div>
         </header>
 
-        <div id="dropzone" class="border-4 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-emerald-500 transition cursor-pointer bg-gray-800 bg-opacity-50 mb-8">
+        <div id="dropzone" class="border-2 border-dashed border-gray-700 hover:border-emerald-500 rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer bg-gray-900/40 hover:bg-gray-900/80 mb-8 backdrop-blur-sm group">
             <input type="file" id="csvFile" accept=".csv" class="hidden">
-            <p class="text-lg font-medium">Drag & drop your reservation CSV here, or <span class="text-emerald-400 underline">browse</span></p>
-            <p class="text-xs text-gray-500 mt-2">All data is processed locally in your browser. Nothing is uploaded to a server.</p>
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            </div>
+            <p class="text-xl font-semibold text-gray-200">Drag & drop your reservation CSV here, or <span class="text-emerald-400 underline decoration-2 underline-offset-4 font-bold">browse</span></p>
+            <p class="text-xs text-gray-500 mt-2">All sorting, cleaning, and performance calculations run safely inside your own browser tab.</p>
         </div>
 
-        <div id="mappingSection" class="hidden bg-gray-800 p-6 rounded-xl border border-gray-700 mb-8">
-            <h2 class="text-xl font-semibold mb-4 text-emerald-300">🔍 Confirm Data Field Mapping</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="mapperGrid">
+        <div id="mappingSection" class="hidden bg-gray-900 p-6 rounded-2xl border border-gray-800 shadow-xl mb-8 animate-fade-in">
+            <h2 class="text-lg font-bold mb-4 text-gray-200 flex items-center gap-2">🔍 Confirm Data Field Mapping</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6" id="mapperGrid">
                 </div>
-            <button id="processBtn" class="bg-emerald-500 hover:bg-emerald-600 text-gray-900 font-bold px-6 py-2 rounded-lg transition shadow-md">
-                Generate Revenue Analysis
+            <button id="processBtn" class="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-gray-950 font-bold px-8 py-3 rounded-xl transition shadow-lg shadow-emerald-500/10 hover:shadow-emerald-500/20 text-sm tracking-wide">
+                Generate Performance Analysis
             </button>
         </div>
 
         <div id="dashboard" class="hidden space-y-8">
             
-            <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 flex justify-between items-center text-sm">
-                <div>🗓️ <span class="font-semibold text-gray-300">Data Timeframe:</span> <span id="dateRangeText" class="text-emerald-400"></span></div>
-                <div>📊 <span class="font-semibold text-gray-300">Total Nights Analyzed:</span> <span id="totalRowsText" class="text-emerald-400"></span></div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
-                    <h3 class="text-md font-semibold text-gray-400 mb-2">Occupancy % by Room & Day of Week</h3>
-                    <div class="relative h-64">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl">
+                    <div class="mb-3">
+                        <h3 class="text-md font-bold text-gray-200">Occupancy Capacity Map</h3>
+                        <p class="text-xs text-gray-400">Weekly ceiling distributions based on single-room unit restrictions.</p>
+                    </div>
+                    <div class="relative h-72">
                         <canvas id="occChart"></canvas>
                     </div>
                 </div>
-                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
-                    <h3 class="text-md font-semibold text-gray-400 mb-2">ADR by Room & Day of Week</h3>
-                    <div class="relative h-64">
+                <div class="bg-gray-900 p-5 rounded-2xl border border-gray-800 shadow-xl">
+                    <div class="mb-3">
+                        <h3 class="text-md font-bold text-gray-200">Yield ADR Aggregations</h3>
+                        <p class="text-xs text-gray-400">Dynamic average daily rate capture timelines sorted across day-of-week matrices.</p>
+                    </div>
+                    <div class="relative h-72">
                         <canvas id="adrChart"></canvas>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                <div class="p-4 bg-gray-700 border-b border-gray-600">
-                    <h3 class="text-lg font-bold text-emerald-300">🎯 Automated Rate Optimization Engine</h3>
-                    <p class="text-xs text-gray-400">Recommendations calculated via demand elasticity models based on your strict 1-room capacity ceilings.</p>
+            <div class="bg-gray-900 rounded-2xl border border-gray-800 shadow-xl overflow-hidden">
+                <div class="p-5 bg-gray-800/30 border-b border-gray-800 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-200">🎯 Automated Rate Optimization Matrix</h3>
+                        <p class="text-xs text-gray-400 mt-0.5">Metrics are color-coded relative to total portfolio variance (<span class="text-emerald-400">Green = Top Performer</span>, <span class="text-red-400">Red = Lagging Target</span>).</p>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-900 text-gray-400 uppercase text-xs">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead class="bg-gray-950/80 text-gray-400 uppercase text-xs tracking-wider border-b border-gray-800">
                             <tr>
-                                <th class="p-4">Room Type</th>
-                                <th class="p-4">Actual OCC</th>
-                                <th class="p-4">Actual ADR</th>
-                                <th class="p-4 text-emerald-400">Actual RevPAR</th>
-                                <th class="p-4 text-emerald-400">Midweek Guidance (Mon-Wed)</th>
-                                <th class="p-4 text-emerald-400">Weekend Guidance (Thu-Sun)</th>
+                                <th class="p-4 font-semibold">Room Type</th>
+                                <th class="p-4 font-semibold text-center">Actual OCC</th>
+                                <th class="p-4 font-semibold text-center">Actual ADR</th>
+                                <th class="p-4 font-semibold text-center">Actual RevPAR</th>
+                                <th class="p-4 font-semibold text-emerald-400 pl-6">Midweek Yield Action (Mon-Wed)</th>
+                                <th class="p-4 font-semibold text-emerald-400 pl-6">Weekend Compression Action (Thu-Sun)</th>
                             </tr>
                         </thead>
-                        <tbody id="recTableBody" class="divide-y divide-gray-700">
+                        <tbody id="recTableBody" class="divide-y divide-gray-800/60 bg-gray-900/20">
                             </tbody>
                     </table>
                 </div>
@@ -95,8 +107,8 @@
         const fileInput = document.getElementById('csvFile');
 
         dropzone.addEventListener('click', () => fileInput.click());
-        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-emerald-500'); });
-        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-emerald-500'));
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-emerald-500', 'bg-gray-900/80'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-emerald-500', 'bg-gray-900/80'));
         dropzone.addEventListener('drop', (e) => {
             e.preventDefault();
             fileInput.files = e.dataTransfer.files;
@@ -117,7 +129,7 @@
                         csvHeaders = Object.keys(csvData[0] || {});
                         initMappingInterface();
                     } else {
-                        alert("The CSV file appears to be empty.");
+                        alert("The file appears to contain no readable data rows.");
                     }
                 }
             });
@@ -131,8 +143,8 @@
                 let guessedHeader = csvHeaders.find(h => field.keywords.some(k => h.toLowerCase().includes(k))) || csvHeaders[0];
                 
                 let html = `<div>
-                    <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">${field.label}</label>
-                    <select id="map_${field.id}" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-200">
+                    <label class="block text-xs font-bold uppercase text-gray-400 mb-2 tracking-wider">${field.label}</label>
+                    <select id="map_${field.id}" class="w-full bg-gray-950 border border-gray-800 focus:border-emerald-500 rounded-xl p-3 text-sm text-gray-200 outline-none transition">
                         ${csvHeaders.map(h => `<option value="${h}" ${h === guessedHeader ? 'selected' : ''}>${h}</option>`).join('')}
                     </select>
                 </div>`;
@@ -140,6 +152,7 @@
             });
 
             document.getElementById('mappingSection').classList.remove('hidden');
+            dropzone.classList.add('hidden'); // Hide dropzone once file is parsed cleanly
         }
 
         document.getElementById('processBtn').addEventListener('click', () => {
@@ -150,6 +163,29 @@
             };
             processRevenueData(mappings);
         });
+
+        // Dynamic Color Ramping Function (Generates custom RGB shades from Muted Red to Emerald Green)
+        function getColorScaleStyle(value, min, max, isPercentage = false) {
+            if (max === min) return 'background-color: rgba(31, 41, 55, 0.4); text-color: #fff;';
+            let ratio = (value - min) / (max - min);
+            
+            let r, g, b;
+            if (ratio < 0.5) {
+                // Muted Red to Neutral Slate/Amber transition
+                let internalRatio = ratio * 2;
+                r = Math.round(185 + (30 * internalRatio)); // 185 down to ~215
+                g = Math.round(28 + (150 * internalRatio));  // 28 up to ~178
+                b = Math.round(28 + (100 * internalRatio));  // 28 up to ~128
+            } else {
+                // Neutral to Rich Emerald Emerald Green transition
+                let internalRatio = (ratio - 0.5) * 2;
+                r = Math.round(215 - (200 * internalRatio)); // Down to 16
+                g = Math.round(178 + (7] * internalRatio));  // Up to 185
+                b = Math.round(128 - (50 * internalRatio));  // Down to 129
+            }
+            // Return safe opacity background colors for a clean data-sheet view
+            return `background-color: rgba(${r}, ${g}, ${b}, 0.12); color: rgb(${Math.min(r+40,255)}, ${Math.min(g+60,255)}, ${Math.min(b+40,255)}); font-weight: 600;`;
+        }
 
         function processRevenueData(maps) {
             const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -186,12 +222,13 @@
             });
 
             if (parsedDates.length === 0) {
-                alert("Could not extract any valid records. Check your column mappings!");
+                alert("Could not process properties. Verify date/number format rules inside target CSV mappings.");
                 return;
             }
 
             parsedDates.sort((a,b) => a - b);
-            document.getElementById('dateRangeText').innerText = `${parsedDates[0].toLocaleDateString()} to ${parsedDates[parsedDates.length-1].toLocaleDateString()}`;
+            document.getElementById('metaWidget').classList.remove('hidden');
+            document.getElementById('dateRangeText').innerText = `${parsedDates[0].toLocaleDateString()} - ${parsedDates[parsedDates.length-1].toLocaleDateString()}`;
             document.getElementById('totalRowsText').innerText = parsedDates.length.toLocaleString();
 
             renderDashboard(matrix, uniqueDatesByDay, daysOfWeek);
@@ -206,69 +243,89 @@
             let chartOccData = { labels: daysOfWeek, datasets: [] };
             let chartAdrData = { labels: daysOfWeek, datasets: [] };
 
-            const colorPalette = ['#34d399', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#f87171', '#2dd4bf'];
+            // Premium visual color palette
+            const colorPalette = ['#10b981', '#3b82f6', '#ec4899', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6'];
+            
+            let flatMetricsList = [];
 
+            // Compute structural metrics arrays first to locate high/low boundaries for color ranges
+            roomTypes.forEach(room => {
+                let totalRevenue = 0, totalBookings = 0, totalPossibleNights = 0;
+                
+                daysOfWeek.forEach(day => {
+                    totalRevenue += matrix[room][day].revenue;
+                    totalBookings += matrix[room][day].count;
+                    totalPossibleNights += (uniqueDatesByDay[day].size || 1);
+                });
+
+                let occ = (totalBookings / totalPossibleNights) * 100;
+                let adr = totalBookings > 0 ? (totalRevenue / totalBookings) : 0;
+                let revpar = (totalRevenue / totalPossibleNights);
+
+                flatMetricsList.push({ room, occ, adr, revpar });
+            });
+
+            const minOcc = Math.min(...flatMetricsList.map(o => o.occ)), maxOcc = Math.max(...flatMetricsList.map(o => o.occ));
+            const minAdr = Math.min(...flatMetricsList.map(o => o.adr)), maxAdr = Math.max(...flatMetricsList.map(o => o.adr));
+            const minRevPar = Math.min(...flatMetricsList.map(o => o.revpar)), maxRevPar = Math.max(...flatMetricsList.map(o => o.revpar));
+
+            // Generate visuals and tables
             roomTypes.forEach((room, index) => {
                 let color = colorPalette[index % colorPalette.length];
                 let occDataPoints = [];
                 let adrDataPoints = [];
-
-                let totalRevenue = 0;
-                let totalBookings = 0;
-                let totalPossibleNights = 0;
 
                 daysOfWeek.forEach(day => {
                     let totalDaysExisted = uniqueDatesByDay[day].size || 1; 
                     let bookings = matrix[room][day].count;
                     let revenue = matrix[room][day].revenue;
 
-                    let occ = (bookings / totalDaysExisted); 
-                    let adr = bookings > 0 ? (revenue / bookings) : 0;
-
-                    occDataPoints.push((occ * 100).toFixed(0));
-                    adrDataPoints.push(adr.toFixed(0));
-
-                    totalRevenue += revenue;
-                    totalBookings += bookings;
-                    totalPossibleNights += totalDaysExisted;
+                    occDataPoints.push(((bookings / totalDaysExisted) * 100).toFixed(0));
+                    adrDataPoints.push((bookings > 0 ? (revenue / bookings) : 0).toFixed(0));
                 });
 
-                let finalOcc = (totalBookings / totalPossibleNights) * 100;
-                let finalAdr = totalBookings > 0 ? (totalRevenue / totalBookings) : 0;
-                let finalRevPar = (totalRevenue / totalPossibleNights);
+                let meta = flatMetricsList.find(m => m.room === room);
 
-                chartOccData.datasets.push({ label: room, data: occDataPoints, borderColor: color, backgroundColor: 'transparent', borderWidth: 2, tension: 0.1 });
-                chartAdrData.datasets.push({ label: room, data: adrDataPoints, borderColor: color, backgroundColor: 'transparent', borderWidth: 2, tension: 0.1 });
+                // UI Chart Data Configs
+                chartOccData.datasets.push({ label: room, data: occDataPoints, backgroundColor: color + 'BB', borderRadius: 4 });
+                chartAdrData.datasets.push({ label: room, data: adrDataPoints, borderColor: color, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 2, tension: 0.3 });
 
-                let mwRec = "";
-                let weRec = "";
+                // Recommendation Guidance Rules
+                let mwRec = "", weRec = "";
+                if (meta.occ > 88) mwRec = `🎯 Underpriced asset. Scale 2027 posted rates by +12-15% across midweek.`;
+                else if (meta.occ > 78) mwRec = `📈 Strong positioning. Increase target base parameters by +5-8%.`;
+                else if (meta.occ < 68) mwRec = `📉 Underperforming. Introduce dynamic -10% volume promotions.`;
+                else mwRec = `➡️ Baseline Balanced. Maintain core rate pace architecture.`;
 
-                if (finalOcc > 88) mwRec = `🎯 Severe Underpricing. Increase base by +12-15%.`;
-                else if (finalOcc > 78) mwRec = `📈 Solid Demand. Lift base rate by +5-8%.`;
-                else if (finalOcc < 68) mwRec = `📉 Low Capture. Introduce dynamic -10% volume incentive.`;
-                else mwRec = `➡️ Rates Optimized. Maintain existing pace structure.`;
+                if (meta.occ > 85) weRec = `🔥 Severe compression. Command a flat +10-12% weekend premium.`;
+                else if (meta.occ < 70) weRec = `⚠️ Volume leak. Institute a strict 2-night Minimum Length of Stay (MLOS).`;
+                else weRec = `👍 Stable capture. Hold existing tactical weekend rates.`;
 
-                if (finalOcc > 85) weRec = `🔥 Aggressive compression. Spike rates +10-12% on weekends.`;
-                else if (finalOcc < 70) weRec = `⚠️ High dropoff. Apply 2-night minimum length of stay (MLOS).`;
-                else weRec = `👍 Performance stable. Hold strategic pricing parameters.`;
+                // Calculate CSS rules dynamically for Heatmap cells
+                let occStyle = getColorScaleStyle(meta.occ, minOcc, maxOcc, true);
+                let adrStyle = getColorScaleStyle(meta.adr, minAdr, maxAdr);
+                let revparStyle = getColorScaleStyle(meta.revpar, minRevPar, maxRevPar);
 
-                let tr = `<tr class="hover:bg-gray-700 class="transition">
-                    <td class="p-4 font-semibold text-gray-200">${room}</td>
-                    <td class="p-4 font-medium text-amber-400">${finalOcc.toFixed(0)}%</td>
-                    <td class="p-4">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalAdr)}</td>
-                    <td class="p-4 text-emerald-400 font-medium">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalRevPar)}</td>
-                    <td class="p-4 text-gray-300 text-xs font-mono">${mwRec}</td>
-                    <td class="p-4 text-gray-300 text-xs font-mono">${weRec}</td>
+                let tr = `<tr class="hover:bg-gray-800/20 transition-colors duration-150">
+                    <td class="p-4 font-bold text-gray-300 border-r border-gray-800/40">${room}</td>
+                    <td class="p-4 text-center border-r border-gray-800/40" style="${occStyle}">${meta.occ.toFixed(0)}%</td>
+                    <td class="p-4 text-center border-r border-gray-800/40" style="${adrStyle}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(meta.adr)}</td>
+                    <td class="p-4 text-center border-r border-gray-800/40" style="${revparStyle}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(meta.revpar)}</td>
+                    <td class="p-4 pl-6 text-gray-400 text-xs font-medium">${mwRec}</td>
+                    <td class="p-4 pl-6 text-gray-400 text-xs font-medium">${weRec}</td>
                 </tr>`;
                 tableBody.insertAdjacentHTML('beforeend', tr);
             });
 
+            // Re-render Canvas Hooks cleanly
             if(occChartInstance) occChartInstance.destroy();
             if(adrChartInstance) adrChartInstance.destroy();
 
-            const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } }, scales: { x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } } } };
+            const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', boxWidth: 10, font: { size: 10 } } } }, scales: { x: { grid: { color: 'rgba(55, 65, 81, 0.3)' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: 'rgba(55, 65, 81, 0.3)' }, ticks: { color: '#9ca3af' } } } };
             
-            occChartInstance = new Chart(document.getElementById('occChart'), { type: 'line', data: chartOccData, options: chartOptions });
+            // Render Occupancy cleanly as a clean layered Bar Chart
+            occChartInstance = new Chart(document.getElementById('occChart'), { type: 'bar', data: chartOccData, options: chartOptions });
+            // Render ADR cleanly as a smooth high-contrast line graph
             adrChartInstance = new Chart(document.getElementById('adrChart'), { type: 'line', data: chartAdrData, options: chartOptions });
         }
     </script>

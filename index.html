@@ -1,1 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Independent Hotel Revenue Portal</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
 
+    <div class="max-w-6xl mx-auto p-6">
+        <header class="border-b border-gray-800 pb-4 mb-8">
+            <h1 class="text-3xl font-bold text-emerald-400">🏨 RevOps Automated Portal</h1>
+            <p class="text-gray-400 text-sm mt-1">Upload historical reservation data to dynamically map metrics and calculate yield recommendations.</p>
+        </header>
+
+        <div id="dropzone" class="border-4 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-emerald-500 transition cursor-pointer bg-gray-800/50 mb-8">
+            <input type="file" id="csvFile" accept=".csv" class="hidden">
+            <p class="text-lg font-medium">Drag & drop your reservation CSV here, or <span class="text-emerald-400 underline">browse</span></p>
+            <p class="text-xs text-gray-500 mt-2">All data is processed locally in your browser. Nothing is uploaded to a server.</p>
+        </div>
+
+        <div id="mappingSection" class="hidden bg-gray-800 p-6 rounded-xl border border-gray-700 mb-8">
+            <h2 class="text-xl font-semibold mb-4 text-emerald-300">🔍 Confirm Data Field Mapping</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="mapperGrid">
+                </div>
+            <button id="processBtn" class="bg-emerald-500 hover:bg-emerald-600 text-gray-900 font-bold px-6 py-2 rounded-lg transition shadow-md">
+                Generate Revenue Analysis
+            </button>
+        </div>
+
+        <div id="dashboard" class="hidden space-y-8">
+            
+            <div class="bg-gray-800/80 border border-gray-700 rounded-xl p-4 flex justify-between items-center text-sm">
+                <div>🗓️ <span class="font-semibold text-gray-300">Data Timeframe:</span> <span id="dateRangeText" class="text-emerald-400"></span></div>
+                <div>📊 <span class="font-semibold text-gray-300">Total Nights Analyzed:</span> <span id="totalRowsText" class="text-emerald-400"></span></div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <h3 class="text-md font-semibold text-gray-400 mb-2">Occupancy % by Room & Day of Week</h3>
+                    <canvas id="occChart"></canvas>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
+                    <h3 class="text-md font-semibold text-gray-400 mb-2">ADR by Room & Day of Week</h3>
+                    <canvas id="adrChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+                <div class="p-4 bg-gray-700/50 border-b border-gray-600">
+                    <h3 class="text-lg font-bold text-emerald-300">🎯 Automated Rate Optimization Engine</h3>
+                    <p class="text-xs text-gray-400">Recommendations calculated via demand elasticity models based on your strict 1-room capacity ceilings.</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-900 text-gray-400 uppercase text-xs">
+                            <tr>
+                                <th class="p-4">Room Type</th>
+                                <th class="p-4">Actual OCC</th>
+                                <th class="p-4">Actual ADR</th>
+                                <th class="p-4">Actual RevPAR</th>
+                                <th class="p-4 text-emerald-400">Midweek Guidance (Mon-Wed)</th>
+                                <th class="p-4 text-emerald-400">Weekend Guidance (Thu-Sun)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recTableBody" class="divide-y divide-gray-700">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let csvData = [];
+        let csvHeaders = [];
+        let occChartInstance = null;
+        let adrChartInstance = null;
+
+        const fieldsToMap = [
+            { id: 'date', label: 'Reservation Date', keywords: ['date', 'day', 'checkin', 'arrival'] },
+            { id: 'room', label: 'Room / Unit Column', keywords: ['unit', 'room', 'type', 'accommodation'] },
+            { id: 'rate', label: 'Rate / Price Column', keywords: ['rate', 'price', 'amount', 'revenue', 'f&b'] }
+        ];
+
+        // UI Target Hooks
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('csvFile');
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-emerald-500'); });
+        dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-emerald-500'));
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileInput.files = e.dataTransfer.files;
+            handleFile();
+        });
+        fileInput.addEventListener('change', handleFile);
+
+        function handleFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    csvData = results.data;
+                    csvHeaders = Object.keys(csvData[0] || {});
+                    initMappingInterface();
+                }
+            });
+        }
+
+        function initMappingInterface() {
+            const grid = document.getElementById('mapperGrid');
+            grid.innerHTML = '';
+            
+            fieldsToMap.forEach(field => {
+                let guessedHeader = csvHeaders.find(h => field.keywords.some(k => h.toLowerCase().includes(k))) || csvHeaders[0];
+                
+                let html = `<div>
+                    <label class="block text-xs font-semibold uppercase text-gray-400 mb-1">${field.label}</label>
+                    <select id="map_${field.id}" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-gray-200">
+                        ${csvHeaders.map(h => `<option value="${h}" ${h === guessedHeader ? 'selected' : ''}>${h}</option>`).join('')}
+                    </select>
+                </div>`;
+                grid.insertAdjacentHTML('beforeend', html);
+            });
+
+            document.getElementById('mappingSection').classList.remove('hidden');
+        }
+
+        document.getElementById('processBtn').addEventListener('click', () => {
+            const mappings = {
+                date: document.getElementById('map_date').value,
+                room: document.getElementById('map_room').value,
+                rate: document.getElementById('map_rate').value
+            };
+
+            processRevenueData(mappings);
+        });
+
+        function processRevenueData(maps) {
+            const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            let parsedDates = [];
+            let uniqueDatesByDay = { Sunday: new Set(), Monday: new Set(), Tuesday: new Set(), Wednesday: new Set(), Thursday: new Set(), Friday: new Set(), Saturday: new Set() };
+            
+            // Primary data aggregation structures
+            let matrix = {}; 
+
+            // Helper to clean Room Name (grabs first word after parenthesis/numbers if formatting matches previous workflow)
+            function cleanRoomName(str) {
+                if(!str) return 'Unknown';
+                let clean = str.replace(/^\d+\)\s*/, ''); // strip leading '06) '
+                return clean.split('-')[0].trim().split(' ')[0]; // Grab first distinct block
+            }
+
+            csvData.forEach(row => {
+                let rawDate = new Date(row[maps.date]);
+                let rawRate = parseFloat(String(row[maps.rate]).replace(/[^0-9.-]+/g,""));
+                let roomType = cleanRoomName(row[maps.room]);
+
+                if (isNaN(rawDate.getTime()) || isNaN(rawRate) || !roomType) return;
+
+                parsedDates.push(rawDate);
+                let dayName = daysOfWeek[rawDate.getDay()];
+                let dateString = rawDate.toISOString().split('T')[0];
+                uniqueDatesByDay[dayName].add(dateString);
+
+                if (!matrix[roomType]) {
+                    matrix[roomType] = {};
+                    daysOfWeek.forEach(d => matrix[roomType][d] = { revenue: 0, count: 0 });
+                }
+                matrix[roomType][dayName].revenue += rawRate;
+                matrix[roomType][dayName].count += 1;
+            });
+
+            if (parsedDates.length === 0) {
+                alert("Could not extract any valid records. Check your column mappings!");
+                return;
+            }
+
+            // Calculations for Timeframes
+            parsedDates.sort((a,b) => a - b);
+            document.getElementById('dateRangeText').innerText = `${parsedDates[0].toLocaleDateString()} to ${parsedDates[parsedDates.length-1].toLocaleDateString()}`;
+            document.getElementById('totalRowsText').innerText = parsedDates.length.toLocaleString();
+
+            renderDashboard(matrix, uniqueDatesByDay, daysOfWeek);
+        }
+
+        function renderDashboard(matrix, uniqueDatesByDay, daysOfWeek) {
+            document.getElementById('dashboard').classList.remove('hidden');
+            const roomTypes = Object.keys(matrix);
+            const tableBody = document.getElementById('recTableBody');
+            tableBody.innerHTML = '';
+
+            let chartOccData = { labels: daysOfWeek, datasets: [] };
+            let chartAdrData = { labels: daysOfWeek, datasets: [] };
+
+            const colorPalette = ['#34d399', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#f87171', '#2dd4bf'];
+
+            roomTypes.forEach((room, index) => {
+                let color = colorPalette[index % colorPalette.length];
+                let occDataPoints = [];
+                let adrDataPoints = [];
+
+                let totalRevenue = 0;
+                let totalBookings = 0;
+                let totalPossibleNights = 0;
+
+                daysOfWeek.forEach(day => {
+                    let totalDaysExisted = uniqueDatesByDay[day].size || 1; 
+                    let bookings = matrix[room][day].count;
+                    let revenue = matrix[room][day].revenue;
+
+                    let occ = (bookings / totalDaysExisted); // Capacity = 1
+                    let adr = bookings > 0 ? (revenue / bookings) : 0;
+
+                    occDataPoints.push((occ * 100).toFixed(0));
+                    adrDataPoints.push(adr.toFixed(0));
+
+                    totalRevenue += revenue;
+                    totalBookings += bookings;
+                    totalPossibleNights += totalDaysExisted;
+                });
+
+                // Cumulative calculations
+                let finalOcc = (totalBookings / totalPossibleNights) * 100;
+                let finalAdr = totalBookings > 0 ? (totalRevenue / totalBookings) : 0;
+                let finalRevPar = (totalRevenue / totalPossibleNights);
+
+                // Build Chart Datasets
+                chartOccData.datasets.push({ label: room, data: occDataPoints, borderColor: color, backgroundColor: color + '22', fill: false });
+                chartAdrData.datasets.push({ label: room, data: adrDataPoints, borderColor: color, backgroundColor: color + '22', fill: false });
+
+                // Recommendation Algorithms
+                let mwRec = "";
+                let weRec = "";
+
+                // Midweek logic
+                if (finalOcc > 88) mwRec = `🎯 Severe Underpricing. Increase base by +12-15%.`;
+                else if (finalOcc > 78) mwRec = `📈 Solid Demand. Lift base rate by +5-8%.`;
+                else if (finalOcc < 68) mwRec = `📉 Low Capture. Introduce dynamic -10% volume incentive.`;
+                else mwRec = `➡️ Rates Optimized. Maintain existing pace structure.`;
+
+                // Weekend logic
+                if (finalOcc > 85) weRec = `🔥 Aggressive compression. Spike rates +10-12% on weekends.`;
+                else if (finalOcc < 70) weRec = `⚠️ High dropoff. Apply 2-night minimum length of stay (MLOS).`;
+                else weRec = `👍 Performance stable. Hold strategic pricing parameters.`;
+
+                // UI Table Output Append
+                let tr = `<tr class="hover:bg-gray-700/30 transition">
+                    <td class="p-4 font-semibold text-gray-200">${room}</td>
+                    <td class="p-4 font-medium text-amber-400">${finalOcc.toFixed(0)}%</td>
+                    <td class="p-4">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalAdr)}</td>
+                    <td class="p-4 text-emerald-400 font-medium">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalRevPar)}</td>
+                    <td class="p-4 text-gray-300 text-xs font-mono">${mwRec}</td>
+                    <td class="p-4 text-gray-300 text-xs font-mono">${weRec}</td>
+                </tr>`;
+                tableBody.insertAdjacentHTML('beforeend', tr);
+            });
+
+            // Destroy existing charts to allow seamless fresh re-uploads
+            if(occChartInstance) occChartInstance.destroy();
+            if(adrChartInstance) adrChartInstance.destroy();
+
+            // Build Visual Charts
+            const chartOptions = { responsive: true, plugins: { legend: { labels: { color: '#9ca3af' } } }, scales: { x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } } } };
+            
+            occChartInstance = new Chart(document.getElementById('occChart'), { type: 'line', data: chartOccData, options: chartOptions });
+            adrChartInstance = new Chart(document.getElementById('adrChart'), { type: 'line', data: chartAdrData, options: chartOptions });
+        }
+    </script>
+</body>
+</html>

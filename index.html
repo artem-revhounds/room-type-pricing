@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Independent Hotel Revenue Portal</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -16,7 +16,7 @@
             <p class="text-gray-400 text-sm mt-1">Upload historical reservation data to dynamically map metrics and calculate yield recommendations.</p>
         </header>
 
-        <div id="dropzone" class="border-4 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-emerald-500 transition cursor-pointer bg-gray-800/50 mb-8">
+        <div id="dropzone" class="border-4 border-dashed border-gray-700 rounded-xl p-8 text-center hover:border-emerald-500 transition cursor-pointer bg-gray-800 bg-opacity-50 mb-8">
             <input type="file" id="csvFile" accept=".csv" class="hidden">
             <p class="text-lg font-medium">Drag & drop your reservation CSV here, or <span class="text-emerald-400 underline">browse</span></p>
             <p class="text-xs text-gray-500 mt-2">All data is processed locally in your browser. Nothing is uploaded to a server.</p>
@@ -33,7 +33,7 @@
 
         <div id="dashboard" class="hidden space-y-8">
             
-            <div class="bg-gray-800/80 border border-gray-700 rounded-xl p-4 flex justify-between items-center text-sm">
+            <div class="bg-gray-800 border border-gray-700 rounded-xl p-4 flex justify-between items-center text-sm">
                 <div>🗓️ <span class="font-semibold text-gray-300">Data Timeframe:</span> <span id="dateRangeText" class="text-emerald-400"></span></div>
                 <div>📊 <span class="font-semibold text-gray-300">Total Nights Analyzed:</span> <span id="totalRowsText" class="text-emerald-400"></span></div>
             </div>
@@ -41,16 +41,20 @@
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
                     <h3 class="text-md font-semibold text-gray-400 mb-2">Occupancy % by Room & Day of Week</h3>
-                    <canvas id="occChart"></canvas>
+                    <div class="relative h-64">
+                        <canvas id="occChart"></canvas>
+                    </div>
                 </div>
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700">
                     <h3 class="text-md font-semibold text-gray-400 mb-2">ADR by Room & Day of Week</h3>
-                    <canvas id="adrChart"></canvas>
+                    <div class="relative h-64">
+                        <canvas id="adrChart"></canvas>
+                    </div>
                 </div>
             </div>
 
             <div class="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                <div class="p-4 bg-gray-700/50 border-b border-gray-600">
+                <div class="p-4 bg-gray-700 border-b border-gray-600">
                     <h3 class="text-lg font-bold text-emerald-300">🎯 Automated Rate Optimization Engine</h3>
                     <p class="text-xs text-gray-400">Recommendations calculated via demand elasticity models based on your strict 1-room capacity ceilings.</p>
                 </div>
@@ -61,7 +65,7 @@
                                 <th class="p-4">Room Type</th>
                                 <th class="p-4">Actual OCC</th>
                                 <th class="p-4">Actual ADR</th>
-                                <th class="p-4">Actual RevPAR</th>
+                                <th class="p-4 text-emerald-400">Actual RevPAR</th>
                                 <th class="p-4 text-emerald-400">Midweek Guidance (Mon-Wed)</th>
                                 <th class="p-4 text-emerald-400">Weekend Guidance (Thu-Sun)</th>
                             </tr>
@@ -84,10 +88,9 @@
         const fieldsToMap = [
             { id: 'date', label: 'Reservation Date', keywords: ['date', 'day', 'checkin', 'arrival'] },
             { id: 'room', label: 'Room / Unit Column', keywords: ['unit', 'room', 'type', 'accommodation'] },
-            { id: 'rate', label: 'Rate / Price Column', keywords: ['rate', 'price', 'amount', 'revenue', 'f&b'] }
+            { id: 'rate', label: 'Rate / Price Column', keywords: ['rate', 'price', 'amount', 'revenue'] }
         ];
 
-        // UI Target Hooks
         const dropzone = document.getElementById('dropzone');
         const fileInput = document.getElementById('csvFile');
 
@@ -109,9 +112,13 @@
                 header: true,
                 skipEmptyLines: true,
                 complete: function(results) {
-                    csvData = results.data;
-                    csvHeaders = Object.keys(csvData[0] || {});
-                    initMappingInterface();
+                    if(results.data && results.data.length > 0) {
+                        csvData = results.data;
+                        csvHeaders = Object.keys(csvData[0] || {});
+                        initMappingInterface();
+                    } else {
+                        alert("The CSV file appears to be empty.");
+                    }
                 }
             });
         }
@@ -141,7 +148,6 @@
                 room: document.getElementById('map_room').value,
                 rate: document.getElementById('map_rate').value
             };
-
             processRevenueData(mappings);
         });
 
@@ -149,23 +155,22 @@
             const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             let parsedDates = [];
             let uniqueDatesByDay = { Sunday: new Set(), Monday: new Set(), Tuesday: new Set(), Wednesday: new Set(), Thursday: new Set(), Friday: new Set(), Saturday: new Set() };
-            
-            // Primary data aggregation structures
             let matrix = {}; 
 
-            // Helper to clean Room Name (grabs first word after parenthesis/numbers if formatting matches previous workflow)
             function cleanRoomName(str) {
                 if(!str) return 'Unknown';
-                let clean = str.replace(/^\d+\)\s*/, ''); // strip leading '06) '
-                return clean.split('-')[0].trim().split(' ')[0]; // Grab first distinct block
+                let clean = str.replace(/^\d+\)\s*/, ''); 
+                return clean.split('-')[0].trim().split(' ')[0]; 
             }
 
             csvData.forEach(row => {
+                if(!row[maps.date] || !row[maps.room]) return;
+                
                 let rawDate = new Date(row[maps.date]);
                 let rawRate = parseFloat(String(row[maps.rate]).replace(/[^0-9.-]+/g,""));
                 let roomType = cleanRoomName(row[maps.room]);
 
-                if (isNaN(rawDate.getTime()) || isNaN(rawRate) || !roomType) return;
+                if (isNaN(rawDate.getTime()) || isNaN(rawRate) || !roomType || roomType === 'Unknown') return;
 
                 parsedDates.push(rawDate);
                 let dayName = daysOfWeek[rawDate.getDay()];
@@ -185,7 +190,6 @@
                 return;
             }
 
-            // Calculations for Timeframes
             parsedDates.sort((a,b) => a - b);
             document.getElementById('dateRangeText').innerText = `${parsedDates[0].toLocaleDateString()} to ${parsedDates[parsedDates.length-1].toLocaleDateString()}`;
             document.getElementById('totalRowsText').innerText = parsedDates.length.toLocaleString();
@@ -218,7 +222,7 @@
                     let bookings = matrix[room][day].count;
                     let revenue = matrix[room][day].revenue;
 
-                    let occ = (bookings / totalDaysExisted); // Capacity = 1
+                    let occ = (bookings / totalDaysExisted); 
                     let adr = bookings > 0 ? (revenue / bookings) : 0;
 
                     occDataPoints.push((occ * 100).toFixed(0));
@@ -229,32 +233,26 @@
                     totalPossibleNights += totalDaysExisted;
                 });
 
-                // Cumulative calculations
                 let finalOcc = (totalBookings / totalPossibleNights) * 100;
                 let finalAdr = totalBookings > 0 ? (totalRevenue / totalBookings) : 0;
                 let finalRevPar = (totalRevenue / totalPossibleNights);
 
-                // Build Chart Datasets
-                chartOccData.datasets.push({ label: room, data: occDataPoints, borderColor: color, backgroundColor: color + '22', fill: false });
-                chartAdrData.datasets.push({ label: room, data: adrDataPoints, borderColor: color, backgroundColor: color + '22', fill: false });
+                chartOccData.datasets.push({ label: room, data: occDataPoints, borderColor: color, backgroundColor: 'transparent', borderWidth: 2, tension: 0.1 });
+                chartAdrData.datasets.push({ label: room, data: adrDataPoints, borderColor: color, backgroundColor: 'transparent', borderWidth: 2, tension: 0.1 });
 
-                // Recommendation Algorithms
                 let mwRec = "";
                 let weRec = "";
 
-                // Midweek logic
                 if (finalOcc > 88) mwRec = `🎯 Severe Underpricing. Increase base by +12-15%.`;
                 else if (finalOcc > 78) mwRec = `📈 Solid Demand. Lift base rate by +5-8%.`;
                 else if (finalOcc < 68) mwRec = `📉 Low Capture. Introduce dynamic -10% volume incentive.`;
                 else mwRec = `➡️ Rates Optimized. Maintain existing pace structure.`;
 
-                // Weekend logic
                 if (finalOcc > 85) weRec = `🔥 Aggressive compression. Spike rates +10-12% on weekends.`;
                 else if (finalOcc < 70) weRec = `⚠️ High dropoff. Apply 2-night minimum length of stay (MLOS).`;
                 else weRec = `👍 Performance stable. Hold strategic pricing parameters.`;
 
-                // UI Table Output Append
-                let tr = `<tr class="hover:bg-gray-700/30 transition">
+                let tr = `<tr class="hover:bg-gray-700 class="transition">
                     <td class="p-4 font-semibold text-gray-200">${room}</td>
                     <td class="p-4 font-medium text-amber-400">${finalOcc.toFixed(0)}%</td>
                     <td class="p-4">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(finalAdr)}</td>
@@ -265,12 +263,10 @@
                 tableBody.insertAdjacentHTML('beforeend', tr);
             });
 
-            // Destroy existing charts to allow seamless fresh re-uploads
             if(occChartInstance) occChartInstance.destroy();
             if(adrChartInstance) adrChartInstance.destroy();
 
-            // Build Visual Charts
-            const chartOptions = { responsive: true, plugins: { legend: { labels: { color: '#9ca3af' } } }, scales: { x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } } } };
+            const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#9ca3af', font: { size: 10 } } } }, scales: { x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } } } };
             
             occChartInstance = new Chart(document.getElementById('occChart'), { type: 'line', data: chartOccData, options: chartOptions });
             adrChartInstance = new Chart(document.getElementById('adrChart'), { type: 'line', data: chartAdrData, options: chartOptions });

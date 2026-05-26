@@ -144,4 +144,177 @@
                 
                 let html = `<div>
                     <label class="block text-xs font-bold uppercase text-gray-400 mb-2 tracking-wider">${field.label}</label>
-                    <select id="map_${field.id}" class="w-full bg-gray-95
+                    <select id="map_${field.id}" class="w-full bg-gray-950 border border-gray-800 focus:border-emerald-500 rounded-xl p-3 text-sm text-gray-200 outline-none transition">
+                        ${csvHeaders.map(h => `<option value="${h}" ${h === guessedHeader ? 'selected' : ''}>${h}</option>`).join('')}
+                    </select>
+                </div>`;
+                grid.insertAdjacentHTML('beforeend', html);
+            });
+
+            document.getElementById('mappingSection').classList.remove('hidden');
+            dropzone.classList.add('hidden'); 
+        }
+
+        document.getElementById('processBtn').addEventListener('click', () => {
+            const mappings = {
+                date: document.getElementById('map_date').value,
+                room: document.getElementById('map_room').value,
+                rate: document.getElementById('map_rate').value
+            };
+            processRevenueData(mappings);
+        });
+
+        // Dynamic Color Ramping Function
+        function getColorScaleStyle(value, min, max) {
+            if (max === min) return 'background-color: rgba(31, 41, 55, 0.4); color: #fff;';
+            let ratio = (value - min) / (max - min);
+            
+            let r, g, b;
+            if (ratio < 0.5) {
+                let internalRatio = ratio * 2;
+                r = Math.round(185 + (30 * internalRatio)); 
+                g = Math.round(28 + (150 * internalRatio));  
+                b = Math.round(28 + (100 * internalRatio));  
+            } else {
+                let internalRatio = (ratio - 0.5) * 2;
+                r = Math.round(215 - (200 * internalRatio)); 
+                g = Math.round(178 + (77 * internalRatio));  
+                b = Math.round(128 - (50 * internalRatio));  
+            }
+            return `background-color: rgba(${r}, ${g}, ${b}, 0.12); color: rgb(${Math.min(r+40,255)}, ${Math.min(g+60,255)}, ${Math.min(b+40,255)}); font-weight: 600;`;
+        }
+
+        function processRevenueData(maps) {
+            const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            let parsedDates = [];
+            let uniqueDatesByDay = { Sunday: new Set(), Monday: new Set(), Tuesday: new Set(), Wednesday: new Set(), Thursday: new Set(), Friday: new Set(), Saturday: new Set() };
+            let matrix = {}; 
+
+            function cleanRoomName(str) {
+                if(!str) return 'Unknown';
+                let clean = str.replace(/^\d+\)\s*/, ''); 
+                return clean.split('-')[0].trim().split(' ')[0]; 
+            }
+
+            csvData.forEach(row => {
+                if(!row[maps.date] || !row[maps.room]) return;
+                
+                let rawDate = new Date(row[maps.date]);
+                let rawRate = parseFloat(String(row[maps.rate]).replace(/[^0-9.-]+/g,""));
+                let roomType = cleanRoomName(row[maps.room]);
+
+                if (isNaN(rawDate.getTime()) || isNaN(rawRate) || !roomType || roomType === 'Unknown') return;
+
+                parsedDates.push(rawDate);
+                let dayName = daysOfWeek[rawDate.getDay()];
+                let dateString = rawDate.toISOString().split('T')[0];
+                uniqueDatesByDay[dayName].add(dateString);
+
+                if (!matrix[roomType]) {
+                    matrix[roomType] = {};
+                    daysOfWeek.forEach(d => matrix[roomType][d] = { revenue: 0, count: 0 });
+                }
+                matrix[roomType][dayName].revenue += rawRate;
+                matrix[roomType][dayName].count += 1;
+            });
+
+            if (parsedDates.length === 0) {
+                alert("Could not process properties. Verify date/number format rules inside target CSV mappings.");
+                return;
+            }
+
+            parsedDates.sort((a,b) => a - b);
+            document.getElementById('metaWidget').classList.remove('hidden');
+            document.getElementById('dateRangeText').innerText = `${parsedDates[0].toLocaleDateString()} - ${parsedDates[parsedDates.length-1].toLocaleDateString()}`;
+            document.getElementById('totalRowsText').innerText = parsedDates.length.toLocaleString();
+
+            renderDashboard(matrix, uniqueDatesByDay, daysOfWeek);
+        }
+
+        function renderDashboard(matrix, uniqueDatesByDay, daysOfWeek) {
+            document.getElementById('dashboard').classList.remove('hidden');
+            const roomTypes = Object.keys(matrix);
+            const tableBody = document.getElementById('recTableBody');
+            tableBody.innerHTML = '';
+
+            let chartOccData = { labels: daysOfWeek, datasets: [] };
+            let chartAdrData = { labels: daysOfWeek, datasets: [] };
+
+            const colorPalette = ['#10b981', '#3b82f6', '#ec4899', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6'];
+            let flatMetricsList = [];
+
+            roomTypes.forEach(room => {
+                let totalRevenue = 0, totalBookings = 0, totalPossibleNights = 0;
+                
+                daysOfWeek.forEach(day => {
+                    totalRevenue += matrix[room][day].revenue;
+                    totalBookings += matrix[room][day].count;
+                    totalPossibleNights += (uniqueDatesByDay[day].size || 1);
+                });
+
+                let occ = (totalBookings / totalPossibleNights) * 100;
+                let adr = totalBookings > 0 ? (totalRevenue / totalBookings) : 0;
+                let revpar = (totalRevenue / totalPossibleNights);
+
+                flatMetricsList.push({ room, occ, adr, revpar });
+            });
+
+            const minOcc = Math.min(...flatMetricsList.map(o => o.occ)), maxOcc = Math.max(...flatMetricsList.map(o => o.occ));
+            const minAdr = Math.min(...flatMetricsList.map(o => o.adr)), maxAdr = Math.max(...flatMetricsList.map(o => o.adr));
+            const minRevPar = Math.min(...flatMetricsList.map(o => o.revpar)), maxRevPar = Math.max(...flatMetricsList.map(o => o.revpar));
+
+            roomTypes.forEach((room, index) => {
+                let color = colorPalette[index % colorPalette.length];
+                let occDataPoints = [];
+                let adrDataPoints = [];
+
+                daysOfWeek.forEach(day => {
+                    let totalDaysExisted = uniqueDatesByDay[day].size || 1; 
+                    let bookings = matrix[room][day].count;
+                    let revenue = matrix[room][day].revenue;
+
+                    occDataPoints.push(((bookings / totalDaysExisted) * 100).toFixed(0));
+                    adrDataPoints.push((bookings > 0 ? (revenue / bookings) : 0).toFixed(0));
+                });
+
+                let meta = flatMetricsList.find(m => m.room === room);
+
+                chartOccData.datasets.push({ label: room, data: occDataPoints, backgroundColor: color + 'BB', borderRadius: 4 });
+                chartAdrData.datasets.push({ label: room, data: adrDataPoints, borderColor: color, backgroundColor: 'transparent', borderWidth: 3, pointRadius: 2, tension: 0.3 });
+
+                let mwRec = "", weRec = "";
+                if (meta.occ > 88) mwRec = `🎯 Underpriced asset. Scale 2027 posted rates by +12-15% across midweek.`;
+                else if (meta.occ > 78) mwRec = `📈 Strong positioning. Increase target base parameters by +5-8%.`;
+                else if (meta.occ < 68) mwRec = `📉 Underperforming. Introduce dynamic -10% volume promotions.`;
+                else mwRec = `➡️ Baseline Balanced. Maintain core rate pace architecture.`;
+
+                if (meta.occ > 85) weRec = `🔥 Severe compression. Command a flat +10-12% weekend premium.`;
+                else if (meta.occ < 70) weRec = `⚠️ Volume leak. Institute a strict 2-night Minimum Length of Stay (MLOS).`;
+                else weRec = `👍 Stable capture. Hold existing tactical weekend rates.`;
+
+                let occStyle = getColorScaleStyle(meta.occ, minOcc, maxOcc);
+                let adrStyle = getColorScaleStyle(meta.adr, minAdr, maxAdr);
+                let revparStyle = getColorScaleStyle(meta.revpar, minRevPar, maxRevPar);
+
+                let tr = `<tr class="hover:bg-gray-800/20 transition-colors duration-150">
+                    <td class="p-4 font-bold text-gray-300 border-r border-gray-800/40">${room}</td>
+                    <td class="p-4 text-center border-r border-gray-800/40" style="${occStyle}">${meta.occ.toFixed(0)}%</td>
+                    <td class="p-4 text-center border-r border-gray-800/40" style="${adrStyle}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(meta.adr)}</td>
+                    <td class="p-4 text-center border-r border-gray-800/40" style="${revparStyle}">${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(meta.revpar)}</td>
+                    <td class="p-4 pl-6 text-gray-400 text-xs font-medium">${mwRec}</td>
+                    <td class="p-4 pl-6 text-gray-400 text-xs font-medium">${weRec}</td>
+                </tr>`;
+                tableBody.insertAdjacentHTML('beforeend', tr);
+            });
+
+            if(occChartInstance) occChartInstance.destroy();
+            if(adrChartInstance) adrChartInstance.destroy();
+
+            const chartOptions = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af', boxWidth: 10, font: { size: 10 } } } }, scales: { x: { grid: { color: 'rgba(55, 65, 81, 0.3)' }, ticks: { color: '#9ca3af' } }, y: { grid: { color: 'rgba(55, 65, 81, 0.3)' }, ticks: { color: '#9ca3af' } } } };
+            
+            occChartInstance = new Chart(document.getElementById('occChart'), { type: 'bar', data: chartOccData, options: chartOptions });
+            adrChartInstance = new Chart(document.getElementById('adrChart'), { type: 'line', data: chartAdrData, options: chartOptions });
+        }
+    </script>
+</body>
+</html>
